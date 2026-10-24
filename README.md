@@ -30,7 +30,9 @@ Set these environment variables if you need to change their defaults.
 | CADENCE_WEB_HOSTNAME         | Host name to serve on                                                                                           | 0.0.0.0          |
 | CADENCE_ADMIN_SECURITY_TOKEN | Admin token for accessing admin methods                                                                         | ''               |
 | CADENCE_WEB_AUTH_STRATEGY    | Auth strategy resolver. Supported values: `disabled` or `jwt`; invalid or unset values fall back to `disabled`. | disabled         |
-| CADENCE_GRPC_TLS_CA_FILE     | Path to root CA certificate file for enabling one-way TLS on gRPC connections                                   | ''               |
+| CADENCE_GRPC_TLS_CA_FILE     | Path to root CA certificate file for verifying the server on TLS gRPC connections                               | ''               |
+| CADENCE_GRPC_TLS_CERT_FILE   | Path to client certificate file for mutual TLS on gRPC connections; set with `CADENCE_GRPC_TLS_KEY_FILE`        | ''               |
+| CADENCE_GRPC_TLS_KEY_FILE    | Path to client private key file for mutual TLS on gRPC connections; set with `CADENCE_GRPC_TLS_CERT_FILE`       | ''               |
 | CADENCE_WEB_SERVICE_NAME     | Name of the web service used as GRPC caller and OTEL resource name                                              | cadence-web      |
 
 Note: To connect `cadence-web` to multiple clusters, you will need to add comma-delimted entries for `CADENCE_GRPC_PEERS`, `CADENCE_GRPC_SERVICES_NAMES` & `CADENCE_CLUSTERS_NAMES` for each cluster (each cluster values are grouped by their index within the Comma-delimited lists).
@@ -111,6 +113,24 @@ docker run -it --rm \
 
 - Replace `/path/on/host/ca.pem` with the actual location of your CA certificate on the host system.
 - `CADENCE_GRPC_TLS_CA_FILE` must point to the path inside the container where the certificate is mounted.
+
+#### Mutual TLS
+
+If the Cadence frontend requires client certificates (`requireClientAuth: true`), also mount a client certificate and its private key, and set both `CADENCE_GRPC_TLS_CERT_FILE` and `CADENCE_GRPC_TLS_KEY_FILE`:
+
+```bash
+docker run -it --rm \
+  -p 8088:8088  \
+  -v /path/on/host/certs:/etc/certs:ro \
+  -e CADENCE_GRPC_TLS_CA_FILE=/etc/certs/ca.pem \
+  -e CADENCE_GRPC_TLS_CERT_FILE=/etc/certs/client.crt \
+  -e CADENCE_GRPC_TLS_KEY_FILE=/etc/certs/client.key \
+  ubercadence/web:latest
+```
+
+- The certificate and key must be set together.
+- `CADENCE_GRPC_TLS_CA_FILE` is optional when the client certificate is set; without it, the system root CAs are used to verify the server.
+- The files are read once at startup, so restart cadence-web after rotating them.
 
 ## Building & developing cadence-web
 
