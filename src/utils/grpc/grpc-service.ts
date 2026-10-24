@@ -145,18 +145,35 @@ export function getChannelCredentials() {
     return cachedCredentials;
   }
   const caRootPath = process.env.CADENCE_GRPC_TLS_CA_FILE?.trim();
-  if (caRootPath) {
-    try {
-      const rootCert = fs.readFileSync(caRootPath);
-      cachedCredentials = grpc.credentials.createSsl(rootCert);
-    } catch (e) {
-      logger.error({
-        message: `Failed to read GRPC TLS CA file`,
-        error: e,
-      });
-    }
-  } else {
+  const certChainPath = process.env.CADENCE_GRPC_TLS_CERT_FILE?.trim();
+  const privateKeyPath = process.env.CADENCE_GRPC_TLS_KEY_FILE?.trim();
+  if (!caRootPath && !certChainPath && !privateKeyPath) {
     cachedCredentials = grpc.credentials.createInsecure();
+    return cachedCredentials;
+  }
+
+  // A client certificate needs both the certificate chain and its private key (mutual TLS)
+  if (Boolean(certChainPath) !== Boolean(privateKeyPath)) {
+    logger.error({
+      message: `CADENCE_GRPC_TLS_CERT_FILE and CADENCE_GRPC_TLS_KEY_FILE must be set together`,
+    });
+    return cachedCredentials;
+  }
+
+  try {
+    const rootCert = caRootPath ? fs.readFileSync(caRootPath) : null;
+    const privateKey = privateKeyPath ? fs.readFileSync(privateKeyPath) : null;
+    const certChain = certChainPath ? fs.readFileSync(certChainPath) : null;
+    cachedCredentials = grpc.credentials.createSsl(
+      rootCert,
+      privateKey,
+      certChain
+    );
+  } catch (e) {
+    logger.error({
+      message: `Failed to read GRPC TLS files`,
+      error: e,
+    });
   }
   return cachedCredentials;
 }
